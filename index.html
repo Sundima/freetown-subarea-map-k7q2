@@ -41,6 +41,16 @@ select#nb { width: 100%; font: inherit; font-size: 1rem; padding: 10px 12px; bor
 .quick button:disabled { opacity: 0.45; cursor: not-allowed; }
 .me-dot { filter: drop-shadow(0 0 4px rgba(20,90,230,0.7)); }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--flood); outline-offset: 2px; }
+details.dd { margin-top: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+details.dd.panel { background: var(--panel); margin-top: 0; padding: 0; }
+details.dd > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-weight: 600; font-size: 0.92rem; }
+details.dd > summary::-webkit-details-marker { display: none; }
+details.dd > summary::after { content: ""; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); margin-left: 4px; margin-bottom: 3px; flex: none; transition: transform 0.15s; }
+details.dd[open] > summary::after { transform: rotate(-135deg); margin-bottom: -2px; }
+details.dd > summary em { font-style: normal; font-family: var(--font-data); font-size: 0.75rem; font-weight: 400; color: var(--muted); margin-left: auto; }
+details.dd > summary:focus-visible { outline: 2px solid var(--flood); outline-offset: 2px; border-radius: 6px; }
+.ddbody { padding: 2px 10px 10px; }
+.chk.all { border-bottom: 1px solid var(--line); border-radius: 0; margin-bottom: 6px; padding-bottom: 8px; font-weight: 600; }
 .grp { margin-top: 14px; }
 .grp h3 { margin: 0 0 6px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; display: flex; align-items: center; gap: 8px; }
 .sw { width: 12px; height: 12px; border-radius: 2px; display: inline-block; flex: none; }
@@ -105,8 +115,20 @@ a { color: var(--flood); }
         <button type="button" id="bDry">Not flood-prone</button>
         <button type="button" id="bNone">Clear</button>
       </div>
-      <div class="grp"><h3><span class="sw f"></span>Mapped flood-prone</h3><div class="checks" id="listF"></div></div>
-      <div class="grp"><h3><span class="sw d"></span>Outside mapped flood area</h3><div class="checks" id="listD"></div></div>
+      <details class="dd" id="ddF">
+        <summary><span class="sw f"></span><span class="ddt">Mapped flood-prone</span><em id="cntF">10 of 10</em></summary>
+        <div class="ddbody">
+          <label class="chk all"><input type="checkbox" id="allF"><span>All flood-prone</span></label>
+          <div class="checks" id="listF"></div>
+        </div>
+      </details>
+      <details class="dd" id="ddD">
+        <summary><span class="sw d"></span><span class="ddt">Outside mapped flood area</span><em id="cntD">10 of 10</em></summary>
+        <div class="ddbody">
+          <label class="chk all"><input type="checkbox" id="allD"><span>All outside flood area</span></label>
+          <div class="checks" id="listD"></div>
+        </div>
+      </details>
     </section>
 
     <section class="panel mapbox" aria-label="Map">
@@ -137,8 +159,11 @@ a { color: var(--flood); }
   </div>
 
   <div class="below">
-    <section class="panel" aria-label="Clusters"><h2>Where to work together</h2><div class="stats" id="stats"></div><ul class="groups" id="groups"></ul></section>
-    <section class="panel" aria-label="Selected subareas"><h2>Selected subareas</h2><div class="tablewrap" id="tbl"></div></section>
+    <section class="panel" aria-label="Clusters"><div class="stats" id="stats"></div><ul class="groups" id="groups"></ul></section>
+    <details class="panel dd dd-main" id="ddSel">
+      <summary><span class="ddt">Selected subareas</span><em id="cntSel">20</em></summary>
+      <div class="ddbody"><div class="tablewrap" id="tbl"></div></div>
+    </details>
   </div>
 
   <p class="note">Outside the mapped flood area does not mean flood-free. Distances are straight lines between subarea centre points, not road distances. Subarea shapes, flood status and building counts come from the neighbourhood scoping sample prepared on 21 Oct 2026. This file holds no household, name or phone data. Street map tiles &copy; Esri, HERE, Garmin, OpenStreetMap contributors, and &copy; CARTO. Satellite imagery &copy; Esri, Maxar, Earthstar Geographics.</p>
@@ -203,8 +228,15 @@ const DATA = [{"id":"fourah_bay_cline_town","name":"Fourah Bay/Cline Town","o":[
     $("bFlood").classList.toggle("on", total > 0 && nF === total && nF === 10);
     $("bDry").classList.toggle("on", total > 0 && nD === total && nD === 10);
     $("bNone").classList.toggle("on", total === 0);
+    const nFt = nb.s.filter((s) => s.fl).length, nDt = nb.s.length - nFt;
+    $("cntF").textContent = nF + " of " + nFt; $("cntD").textContent = nD + " of " + nDt;
+    const setAll = (id, on, all) => { const el = $(id); el.checked = all > 0 && on === all; el.indeterminate = on > 0 && on < all; };
+    setAll("allF", nF, nFt); setAll("allD", nD, nDt);
+    $("cntSel").textContent = total;
     draw(false); summarise();
   }
+  $("allF").addEventListener("change", (e) => { cur().s.filter((s) => s.fl).forEach((s) => e.target.checked ? state.sel.add(s.n) : state.sel.delete(s.n)); sync(); });
+  $("allD").addEventListener("change", (e) => { cur().s.filter((s) => !s.fl).forEach((s) => e.target.checked ? state.sel.add(s.n) : state.sel.delete(s.n)); sync(); });
 
   function groupsOf(list) {
     const parent = list.map((_, i) => i);

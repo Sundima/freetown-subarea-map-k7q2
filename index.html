@@ -38,6 +38,8 @@ select#nb { width: 100%; font: inherit; font-size: 1rem; padding: 10px 12px; bor
 .quick button { font: inherit; font-size: 0.82rem; padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); cursor: pointer; }
 .quick button:hover { border-color: var(--ink); }
 .quick button.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.quick button:disabled { opacity: 0.45; cursor: not-allowed; }
+.me-dot { filter: drop-shadow(0 0 4px rgba(20,90,230,0.7)); }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--flood); outline-offset: 2px; }
 .grp { margin-top: 14px; }
 .grp h3 { margin: 0 0 6px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; display: flex; align-items: center; gap: 8px; }
@@ -112,6 +114,10 @@ a { color: var(--flood); }
         <div class="quick" role="group" aria-label="Map view">
           <button type="button" id="vWhole" class="on">Whole neighbourhood</button>
           <button type="button" id="vSel">Zoom to selected</button>
+        </div>
+        <div class="quick" role="group" aria-label="My location">
+          <button type="button" id="bLoc">Show my location</button>
+          <button type="button" id="bFollow" disabled>Follow me</button>
         </div>
         <div class="slider">
           <label for="gap">Group subareas closer than</label>
@@ -291,7 +297,8 @@ const DATA = [{"id":"fourah_bay_cline_town","name":"Fourah Bay/Cline Town","o":[
       groupsEl.appendChild(li);
     });
     const t = document.createElement("table"), hr = t.insertRow();
-    ["Subarea", "Status", "Bldgs", "Nearest", "Route"].forEach((h, i) => { const th = document.createElement("th"); th.textContent = h; if (i === 2 || i === 3) th.className = "n"; hr.appendChild(th); });
+    const heads = ["Subarea", "Status", "Bldgs", "Nearest"].concat(state.me ? ["From you"] : []).concat(["Route"]);
+    heads.forEach((h, i) => { const th = document.createElement("th"); th.textContent = h; if (h === "Bldgs" || h === "Nearest" || h === "From you") th.className = "n"; hr.appendChild(th); });
     sel.forEach((s) => {
       let near = Infinity, nn = null; sel.forEach((o) => { if (o !== s) { const d = dist(s, o); if (d < near) { near = d; nn = o; } } });
       const r = t.insertRow();
@@ -299,6 +306,7 @@ const DATA = [{"id":"fourah_bay_cline_town","name":"Fourah Bay/Cline Town","o":[
       r.insertCell().textContent = s.fl ? "Flood-prone" : "Not mapped";
       const c3 = r.insertCell(); c3.className = "n"; c3.textContent = s.b;
       const c4 = r.insertCell(); c4.className = "n"; c4.textContent = nn ? fmtDist(near) + " (" + nn.n + ")" : "-";
+      if (state.me) { const cm = r.insertCell(); cm.className = "n"; cm.textContent = fmtDist(dist(state.me, s)); }
       const c5 = r.insertCell(), a = document.createElement("a");
       a.href = "https://www.google.com/maps/dir/?api=1&destination=" + s.lat + "," + s.lon; a.target = "_blank"; a.rel = "noopener"; a.textContent = "Directions"; c5.appendChild(a);
     });
@@ -323,6 +331,44 @@ const DATA = [{"id":"fourah_bay_cline_town","name":"Fourah Bay/Cline Town","o":[
   $("vWhole").addEventListener("click", () => { state.zoomSel = false; $("vWhole").classList.add("on"); $("vSel").classList.remove("on"); fit(); });
   $("vSel").addEventListener("click", () => { state.zoomSel = true; $("vSel").classList.add("on"); $("vWhole").classList.remove("on"); fit(); });
   $("gap").addEventListener("input", () => { state.gap = +$("gap").value; $("gapv").textContent = state.gap + " m"; draw(false); summarise(); });
+  // ---- live location (stays in the browser; nothing is sent anywhere) ----
+  let meDot = null, meAcc = null, locOn = false, follow = false, firstFix = true;
+  const info = (t) => { $("info").textContent = t; };
+  function stopLoc() {
+    locOn = false; follow = false; state.me = null; map.stopLocate();
+    if (meDot) { map.removeLayer(meDot); meDot = null; } if (meAcc) { map.removeLayer(meAcc); meAcc = null; }
+    $("bLoc").textContent = "Show my location"; $("bLoc").classList.remove("on");
+    $("bFollow").disabled = true; $("bFollow").classList.remove("on"); summarise();
+  }
+  $("bLoc").addEventListener("click", () => {
+    if (locOn) { stopLoc(); showInfo(null); return; }
+    if (!navigator.geolocation) { info("This browser cannot share your location."); return; }
+    locOn = true; firstFix = true; $("bLoc").textContent = "Hide my location"; $("bLoc").classList.add("on");
+    info("Finding your location. Allow location access if your browser asks.");
+    map.locate({ watch: true, setView: false, enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+  });
+  $("bFollow").addEventListener("click", () => {
+    follow = !follow; $("bFollow").classList.toggle("on", follow);
+    if (follow && state.me) map.panTo([state.me.lat, state.me.lon]);
+  });
+  map.on("locationfound", (e) => {
+    state.me = { lat: e.latlng.lat, lon: e.latlng.lng, acc: e.accuracy };
+    if (!meAcc) meAcc = L.circle(e.latlng, { radius: e.accuracy, color: "#1a5ae6", weight: 1, fillColor: "#1a5ae6", fillOpacity: 0.12, interactive: false }).addTo(map);
+    else meAcc.setLatLng(e.latlng).setRadius(e.accuracy);
+    if (!meDot) meDot = L.circleMarker(e.latlng, { radius: 8, color: "#ffffff", weight: 3, fillColor: "#1a5ae6", fillOpacity: 1, className: "me-dot", interactive: false }).addTo(map);
+    else meDot.setLatLng(e.latlng);
+    $("bFollow").disabled = false;
+    if (firstFix) { firstFix = false; map.fitBounds(L.latLngBounds([e.latlng].concat(cur().o.flat())), { padding: [30, 30], maxZoom: 17 }); }
+    else if (follow) map.panTo(e.latlng);
+    info("You are here (accurate to about " + Math.round(e.accuracy) + " m). The table shows how far each selected subarea is from you.");
+    summarise();
+  });
+  map.on("locationerror", (e) => {
+    const denied = e && e.code === 1;
+    stopLoc();
+    info(denied ? "Location is blocked. Allow location for this page in your browser settings, then tap Show my location again." : "Could not find your location. Move to open sky or check that location is on, then try again.");
+  });
+
   window.addEventListener("resize", () => map.invalidateSize());
 
   load();

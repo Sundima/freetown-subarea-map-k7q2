@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Subarea Cluster Map</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1f5f4a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -194,9 +198,9 @@ const DATA = [{"id":"fourah_bay_cline_town","name":"Fourah Bay/Cline Town","o":[
 
   // ---- map ----
   const map = L.map("map", { zoomControl: true, preferCanvas: false });
-  const street = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles &copy; Esri, HERE, Garmin, OpenStreetMap contributors" });
-  const voyager = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", { maxZoom: 19, subdomains: "abcd", attribution: "&copy; OpenStreetMap contributors &copy; CARTO" });
-  const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Imagery &copy; Esri, Maxar, Earthstar Geographics" });
+  const street = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, crossOrigin: true, attribution: "Tiles &copy; Esri, HERE, Garmin, OpenStreetMap contributors" });
+  const voyager = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", { maxZoom: 19, crossOrigin: true, subdomains: "abcd", attribution: "&copy; OpenStreetMap contributors &copy; CARTO" });
+  const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, crossOrigin: true, attribution: "Imagery &copy; Esri, Maxar, Earthstar Geographics" });
   street.addTo(map);
   L.control.layers({ "Street map (Esri)": street, "Street map (CARTO)": voyager, "Satellite": sat }, null, { position: "topright" }).addTo(map);
   L.control.scale({ metric: true, imperial: false }).addTo(map);
@@ -402,6 +406,9 @@ const DATA = [{"id":"fourah_bay_cline_town","name":"Fourah Bay/Cline Town","o":[
   });
 
   window.addEventListener("resize", () => map.invalidateSize());
+  window.addEventListener("offline", () => info("No signal. Your location, the shapes and the distances still work. Map pictures show only where you looked before. Directions need a signal."));
+  window.addEventListener("online", () => info("Signal is back."));
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 
   load();
 })();
